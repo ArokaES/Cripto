@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CryptoVault — Live Prices</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080b10;
+    --surface: #0d1117;
+    --surface2: #131820;
+    --border: #1e2733;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --green: #00e676;
+    --red: #ff1744;
+    --text: #e8edf2;
+    --muted: #4a5568;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size:40px 40px;
+    pointer-events:none; z-index:0;
+  }
+  body::after {
+    content:'';
+    position:fixed; top:-200px; left:-200px;
+    width:600px; height:600px;
+    background:radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%);
+    pointer-events:none; z-index:0;
+  }
+  .glow2 {
+    position:fixed; bottom:-200px; right:-100px;
+    width:500px; height:500px;
+    background:radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%);
+    pointer-events:none; z-index:0;
+  }
+  .wrap { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:0 24px; }
+
+  header {
+    padding:20px 0;
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0;
+    background:rgba(8,11,16,0.9);
+    backdrop-filter:blur(20px);
+    z-index:100;
+  }
+  .hdr { display:flex; align-items:center; justify-content:space-between; }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo-icon {
+    width:36px; height:36px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px;
+  }
+  .logo-text { font-size:20px; font-weight:800; letter-spacing:-0.5px; }
+  .logo-text span { color:var(--accent); }
+  .live-badge {
+    display:flex; align-items:center; gap:6px;
+    background:rgba(0,230,118,0.08);
+    border:1px solid rgba(0,230,118,0.2);
+    border-radius:20px; padding:5px 12px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px; color:var(--green); letter-spacing:1px;
+  }
+  .live-dot {
+    width:6px; height:6px;
+    background:var(--green); border-radius:50%;
+    animation:pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
+
+  .stats-bar {
+    padding:14px 0; border-bottom:1px solid var(--border);
+    display:flex; gap:32px; overflow-x:auto; scrollbar-width:none;
+  }
+  .stats-bar::-webkit-scrollbar { display:none; }
+  .stat { display:flex; flex-direction:column; gap:2px; min-width:fit-content; }
+  .stat-label { font-size:10px; color:var(--muted); font-family:'JetBrains Mono',monospace; letter-spacing:1px; text-transform:uppercase; }
+  .stat-val { font-size:14px; font-weight:600; font-family:'JetBrains Mono',monospace; }
+
+  main { padding:28px 0 60px; }
+  .sec-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .sec-title { font-size:22px; font-weight:700; letter-spacing:-0.5px; }
+  .sec-title span { color:var(--accent); }
+  .controls { display:flex; align-items:center; gap:10px; }
+  .search {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:8px 14px;
+    color:var(--text); font-family:'Syne',sans-serif; font-size:13px;
+    width:190px; outline:none; transition:border-color .2s;
+  }
+  .search:focus { border-color:var(--accent); }
+  .search::placeholder { color:var(--muted); }
+  .rbtn {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:8px 14px; color:var(--muted);
+    cursor:pointer; transition:all .2s;
+    display:flex; align-items:center; gap:6px;
+    font-family:'Syne',sans-serif; font-size:12px; font-weight:600;
+  }
+  .rbtn:hover { border-color:var(--accent); color:var(--accent); }
+  .rbtn.spin svg { animation:rot .8s linear infinite; }
+  @keyframes rot { to { transform:rotate(360deg); } }
+
+  .timer-bar { height:2px; background:var(--border); border-radius:2px; margin-bottom:20px; overflow:hidden; }
+  .timer-fill { height:100%; background:linear-gradient(90deg,var(--accent2),var(--accent)); border-radius:2px; transition:width 1s linear; }
+
+  .tbl { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .thead {
+    display:grid;
+    grid-template-columns:48px 2fr 1.3fr 1fr 1fr 1fr 1.2fr;
+    padding:13px 20px;
+    border-bottom:1px solid var(--border);
+    background:var(--surface2);
+  }
+  .th { font-size:10px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:1px; font-family:'JetBrains Mono',monospace; }
+  .th.r { text-align:right; }
+
+  .row {
+    display:grid;
+    grid-template-columns:48px 2fr 1.3fr 1fr 1fr 1fr 1.2fr;
+    padding:15px 20px;
+    border-bottom:1px solid rgba(30,39,51,0.5);
+    align-items:center;
+    transition:background .15s;
+    animation:fadeIn .35s ease both;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .row:last-child { border-bottom:none; }
+  .row:hover { background:rgba(0,229,255,0.03); }
+
+  .rank { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); }
+  .coin { display:flex; align-items:center; gap:12px; }
+  .cimg { width:34px; height:34px; border-radius:50%; }
+  .cname { font-size:15px; font-weight:700; letter-spacing:-0.3px; }
+  .csym { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  .price { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500; text-align:right; }
+  .chg { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; text-align:right; }
+  .chg.up { color:var(--green); }
+  .chg.dn { color:var(--red); }
+  .mcap { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted); text-align:right; }
+  .flash-up { animation:fup .5s ease; }
+  .flash-dn { animation:fdn .5s ease; }
+  @keyframes fup { 0%{color:var(--green)} 100%{color:var(--text)} }
+  @keyframes fdn { 0%{color:var(--red)}   100%{color:var(--text)} }
+
+  .loading {
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; padding:80px 20px; gap:16px;
+  }
+  .spinner {
+    width:40px; height:40px;
+    border:2px solid var(--border);
+    border-top-color:var(--accent);
+    border-radius:50%;
+    animation:rot .8s linear infinite;
+  }
+  .ltxt { font-size:13px; color:var(--muted); font-family:'JetBrains Mono',monospace; letter-spacing:1px; }
+  .err { text-align:center; padding:60px 20px; font-size:13px; color:var(--red); font-family:'JetBrains Mono',monospace; line-height:1.8; }
+
+  .footer { text-align:center; padding:12px 0; font-size:11px; color:var(--muted); font-family:'JetBrains Mono',monospace; border-top:1px solid var(--border); }
+
+  @media(max-width:768px){
+    .thead,.row { grid-template-columns:32px 2fr 1.1fr 1fr; }
+    .th.hm,.row .hm { display:none; }
+    .search { width:130px; }
+  }
+</style>
+</head>
+<body>
+<div class="glow2"></div>
+
+<header>
+  <div class="wrap">
+    <div class="hdr">
+      <div class="logo">
+        <div class="logo-icon">⬡</div>
+        <div class="logo-text">Crypto<span>Vault</span></div>
+      </div>
+      <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="stats-bar">
+    <div class="stat"><span class="stat-label">Mercado Global</span><span class="stat-val" id="sMcap">—</span></div>
+    <div class="stat"><span class="stat-label">Volumen 24h</span><span class="stat-val" id="sVol">—</span></div>
+    <div class="stat"><span class="stat-label">BTC Dominancia</span><span class="stat-val" id="sBtc">—</span></div>
+    <div class="stat"><span class="stat-label">Monedas activas</span><span class="stat-val" id="sCoins">—</span></div>
+    <div class="stat"><span class="stat-label">Actualizado</span><span class="stat-val" id="sTime">—</span></div>
+  </div>
+
+  <main>
+    <div class="timer-bar"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+
+    <div class="sec-hdr">
+      <div class="sec-title">Precios <span>en vivo</span></div>
+      <div class="controls">
+        <input class="search" id="searchInput" type="text" placeholder="🔍 Buscar...">
+        <button class="rbtn" id="rbtn" onclick="loadData()">
+          <svg id="ricon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M23 4v6h-6M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Actualizar
+        </button>
+      </div>
+    </div>
+
+    <div class="tbl">
+      <div class="thead">
+        <div class="th">#</div>
+        <div class="th">Moneda</div>
+        <div class="th r">Precio</div>
+        <div class="th r">1h %</div>
+        <div class="th r hm">24h %</div>
+        <div class="th r hm">7d %</div>
+        <div class="th r hm">Cap. Mercado</div>
+      </div>
+      <div id="list">
+        <div class="loading"><div class="spinner"></div><div class="ltxt">Cargando precios...</div></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="footer">Datos via CoinGecko · Auto-actualización cada 60s</div>
+</div>
+
+<script>
+const API_KEY = 'CG-UHiJLZvz9EoUQnbpzAtsCsyT';
+const COIN_IDS = [
+  'bitcoin','ethereum','tether','binancecoin','solana','ripple','usd-coin',
+  'cardano','avalanche-2','dogecoin','chainlink','polkadot','tron','shiba-inu',
+  'litecoin','bitcoin-cash','uniswap','stellar','monero','ethereum-classic',
+  'cosmos','near','aptos','sui','pepe','hedera-hashgraph',
+  'internet-computer','render-token','arbitrum','optimism'
+];
+
+let allCoins = [];
+let prevPrices = {};
+let timerInterval = null;
+let countdown = 60;
+
+function fmt(n) {
+  if (n == null) return '—';
+  if (n >= 1e12) return '$'+(n/1e12).toFixed(2)+'T';
+  if (n >= 1e9)  return '$'+(n/1e9).toFixed(2)+'B';
+  if (n >= 1e6)  return '$'+(n/1e6).toFixed(2)+'M';
+  if (n >= 1)    return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:4});
+  return '$'+n.toFixed(6);
+}
+function fmtShort(n) {
+  if (!n) return '—';
+  if (n >= 1e12) return (n/1e12).toFixed(1)+'T';
+  if (n >= 1e9)  return (n/1e9).toFixed(1)+'B';
+  if (n >= 1e6)  return (n/1e6).toFixed(1)+'M';
+  return n.toLocaleString();
+}
+function fmtPct(n) {
+  if (n == null) return '—';
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+
+function renderCoins(coins) {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = q ? coins.filter(c => c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q)) : coins;
+  const list = document.getElementById('list');
+  if (!filtered.length) { list.innerHTML='<div class="err">Sin resultados</div>'; return; }
+
+  list.innerHTML = filtered.map((c, i) => {
+    const p1  = c.price_change_percentage_1h_in_currency;
+    const p24 = c.price_change_percentage_24h_in_currency;
+    const p7  = c.price_change_percentage_7d_in_currency;
+    const prev = prevPrices[c.id];
+    let pcls = '';
+    if (prev !== undefined) pcls = c.current_price > prev ? 'flash-up' : c.current_price < prev ? 'flash-dn' : '';
+    return `
+    <div class="row" style="animation-delay:${i*.03}s">
+      <div class="rank">${c.market_cap_rank||i+1}</div>
+      <div class="coin">
+        <img class="cimg" src="${c.image}" alt="${c.name}" loading="lazy">
+        <div><div class="cname">${c.name}</div><div class="csym">${c.symbol}</div></div>
+      </div>
+      <div class="price ${pcls}">${fmt(c.current_price)}</div>
+      <div class="chg ${(p1??0)>=0?'up':'dn'}">${(p1??0)>=0?'▲':'▼'} ${fmtPct(p1)}</div>
+      <div class="chg ${(p24??0)>=0?'up':'dn'} hm">${(p24??0)>=0?'▲':'▼'} ${fmtPct(p24)}</div>
+      <div class="chg ${(p7??0)>=0?'up':'dn'} hm">${(p7??0)>=0?'▲':'▼'} ${fmtPct(p7)}</div>
+      <div class="mcap hm">$${fmtShort(c.market_cap)}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateStats(d) {
+  if (!d) return;
+  document.getElementById('sMcap').textContent  = '$'+fmtShort(d.total_market_cap?.usd);
+  document.getElementById('sVol').textContent   = '$'+fmtShort(d.total_volume?.usd);
+  document.getElementById('sBtc').textContent   = (d.market_cap_percentage?.btc||0).toFixed(1)+'%';
+  document.getElementById('sCoins').textContent = (d.active_cryptocurrencies||0).toLocaleString();
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  countdown = 60;
+  const fill = document.getElementById('timerFill');
+  fill.style.width = '100%';
+  timerInterval = setInterval(() => {
+    countdown--;
+    fill.style.width = (countdown/60*100)+'%';
+    if (countdown <= 0) loadData();
+  }, 1000);
+}
+
+async function loadData() {
+  const btn = document.getElementById('rbtn');
+  btn.classList.add('spin');
+  document.getElementById('list').innerHTML =
+    '<div class="loading"><div class="spinner"></div><div class="ltxt">Actualizando precios...</div></div>';
+
+  const marketsUrl = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d&x_cg_demo_api_key=${API_KEY}`;
+  const globalUrl  = `https://api.coingecko.com/api/v3/global?x_cg_demo_api_key=${API_KEY}`;
+
+  try {
+    const [marketsRes, globalRes] = await Promise.all([
+      fetch(marketsUrl),
+      fetch(globalUrl)
+    ]);
+
+    if (!marketsRes.ok || !globalRes.ok) {
+      throw new Error(`Error en la conexión. Inténtalo de nuevo en unos segundos.`);
+    }
+
+    const marketsData = await marketsRes.json();
+    const globalData = await globalRes.json();
+
+    allCoins.forEach(c => prevPrices[c.id] = c.current_price);
+    allCoins = marketsData || [];
+    updateStats(globalData.data || globalData);
+    renderCoins(allCoins);
+
+    document.getElementById('sTime').textContent =
+      new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+
+    resetTimer();
+  } catch(err) {
+    document.getElementById('list').innerHTML =
+      `<div class="err">⚠ Error al cargar datos<br><small style="color:var(--muted)">${err.message}</small></div>`;
+  }
+
+  btn.classList.remove('spin');
+}
+
+document.getElementById('searchInput').addEventListener('input', () => renderCoins(allCoins));
+loadData();
+</script>
+
+</body>
+</html>
